@@ -1,0 +1,64 @@
+---
+title: "Trabajo Práctico 2,  EEA"
+author: "Luis Nahuel Fernández"
+date: '2022-10-30'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+library(here)
+
+setwd(here())
+
+usu_individual_T421 <- read.csv("EPH_usu_4_Trim_2021_txt/usu_individual_T421.txt", sep=";")
+usu_individual_T421 %>% filter(ESTADO==1)->usu_individual_T421
+```
+
+# Características de la no respuesta
+
+Se trabajará solo con los ocupados.
+
+Hay tres tipos de no respuesta
+
+MCAR: Missing completely at Random. La no respuesta es absolutamente aleatoria, no depende de ninguna variable. En este caso no es porblemática.  
+
+MAR:  Missing at random. Hay variables que influencian la no respuesta en un marco de aleatoridad. En este caso se llevan adelante procedimientos para intentar disminuir los sesgos producidos por la misma.
+
+MNAR: Missing Not at Random. La no respuesta no es aleatoria, dependiendo por entero de otras variables o incluso de sí misma. Es el caso más problemático de todos. Ejemplo de esto pueden ser las encuestas sobre consumo de drogas donde las mismas variables de estudio se condicionan a sí mismas generando sesgos en la no respuesta. 
+
+```{r s_cat_ocup}
+usu_individual_T421 %>% group_by(CAT_OCUP) %>% summarise(n=n(),
+                                                         no_respuesta=sum(P21==(-9)),
+                                                         porcentaje=no_respuesta/n,
+                                                         media=mean(P21))
+```
+```{r s_sexo}
+usu_individual_T421 %>% group_by(CH04) %>% summarise(n=n(),
+                                                         no_respuesta=sum(P21==(-9)),
+                                                         porcentaje=no_respuesta/n,
+                                                         media=mean(P21))
+```
+```{r s_intensi}
+usu_individual_T421 %>% group_by(INTENSI) %>% summarise(n=n(),
+                                                         no_respuesta=sum(P21==(-9)),
+                                                         porcentaje=no_respuesta/n,
+                                                         media=mean(P21))
+```
+```{r s_reg}
+usu_individual_T421 %>% group_by(NIVEL_ED) %>% summarise(n=n(),
+                                                         no_respuesta=sum(P21==(-9)),
+                                                         porcentaje=no_respuesta/n,
+                                                         media=mean(P21))
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
