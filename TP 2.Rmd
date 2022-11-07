@@ -14,6 +14,73 @@ setwd(here())
 
 usu_individual_T421 <- read.csv("EPH_usu_4_Trim_2021_txt/usu_individual_T421.txt", sep=";")
 usu_individual_T421 %>% filter(ESTADO==1)->usu_individual_T421
+
+auxiliares<-function(base){
+
+
+  base$d5<-as.numeric(substr(base$PP04D_COD,nchar(base$PP04D_COD),nchar(base$PP04D_COD)))
+  
+  base$CALIFICACION<-as.numeric(substr(base$PP04D_COD,nchar(base$PP04D_COD),nchar(base$PP04D_COD)))
+  base$JERARQUIA<-as.numeric(substr(base$PP04D_COD,nchar(base$PP04D_COD)-2,nchar(base$PP04D_COD)-2))
+  # base$JERARQUIA<-ifelse(is.na(base$JERARQUIA), 0, base$JERARQUIA)
+
+  base$CALIFICACION<-as.factor(base$CALIFICACION)
+  base$JERARQUIA<-as.factor(base$JERARQUIA)
+  
+  base %>%  mutate(rol = case_when(
+    ESTADO==1 & CAT_OCUP== 3 & (JERARQUIA==2 | JERARQUIA==0) ~  "Dirección",
+    ESTADO==1 & CAT_OCUP== 3 & JERARQUIA==3 & CALIFICACION==1 ~  "Profesional",
+    ESTADO==1 & CAT_OCUP== 3 & JERARQUIA==3 & CALIFICACION==2 ~  "tecnicos",
+    ESTADO==1 & CAT_OCUP== 3 & JERARQUIA==3 & CALIFICACION==3 ~  "operativos",
+    ESTADO==1 & CAT_OCUP== 3 & JERARQUIA==3 & CALIFICACION==4 ~  "Obrero NC",
+    ESTADO==1 & CAT_OCUP==2 & (NIVEL_ED==6 | NIVEL_ED==5) ~ "CP_calif",
+    ESTADO==1 & CAT_OCUP==2 & NIVEL_ED!=6 | NIVEL_ED!=5 ~ "CP_no_calif",
+    ESTADO==1 & CAT_OCUP== 1 ~ "Patron",
+    TRUE ~ "Otro"
+    ))->base
+  
+  base %>%  mutate(INF = case_when(
+    PP04C<6 & d5>1 & d5<6 & CAT_OCUP== 1  ~  "Patron INF",
+    PP04C>5 & (d5<1 | d5>=6) & CAT_OCUP== 1  ~  "Patron formal",
+    PP04C<6 & d5>1 & d5<6 & CAT_OCUP== 2  ~  "CP INF",
+    PP04C>5 & (d5<1 | d5>=6) & CAT_OCUP== 2  ~  "CP formal",
+    CAT_OCUP== 3 & PP07H==2 &  PP04C>5 & PP04B1==2  ~  "inf_for",
+    CAT_OCUP== 3 & PP07H==2 &  PP04C<6 & PP04B1==2 ~ "inf_inf",
+    CAT_OCUP== 3 & PP07H==2 & PP04B1==1 ~ "inf_hog",
+    CAT_OCUP== 3 & PP07H==1 & PP04B1==1 ~ "form_hog",
+    CAT_OCUP== 3 & PP07H==1 &  PP04C>5 & PP04B1==2   ~ "form_form",
+    CAT_OCUP== 3 & PP07H==1 &  PP04C<6 & PP04B1==2   ~ "form_inf"
+    ))->base
+  
+  base$CH03<-as.factor(base$CH03)
+  base$CAT_OCUP<-as.factor(base$CAT_OCUP)
+  base$NIVEL_ED<-as.factor(base$NIVEL_ED)
+  base$CH04<-as.factor(base$CH04)
+  base$AGLOMERADO<-as.factor(base$AGLOMERADO)
+  base$REGION<-as.factor(base$REGION)
+  base$INF<-as.factor(base$INF)
+  base$rol<-as.factor(base$rol)
+  
+  base$PP04C<-as.factor(base$PP04C)
+  
+  # base$CH06<-(base$CH06-min(base$CH06))/(max(base$CH06)- min(base$CH06))
+  
+  base$TECNO<-substr(base$PP04D_COD,4,4)
+  base$car1<-substr(base$PP04D_COD,1,1)
+  base$car2<-substr(base$PP04D_COD,1,2)
+  
+  base$TECNO<-as.factor(base$TECNO)
+  
+  base$car1<-as.factor(base$car1)
+  base$car2<-as.factor(base$car2)
+  
+  base<-funcionesEPH::entra.cuchillo.salen.las.ramas(base)
+  
+  return(base)
+  
+}
+
+usu_individual_T421<-auxiliares(usu_individual_T421)
 ```
 
 # Características de la no respuesta
@@ -34,18 +101,29 @@ usu_individual_T421 %>% group_by(CAT_OCUP) %>% summarise(n=n(),
                                                          porcentaje=no_respuesta/n,
                                                          media=mean(P21))
 ```
+
+
+```{r s_rol}
+usu_individual_T421 %>% group_by(rol) %>% summarise(n=n(),
+                                                         no_respuesta=sum(P21==(-9)),
+                                                         porcentaje=no_respuesta/n,
+                                                         media=mean(P21))
+```
+
 ```{r s_sexo}
 usu_individual_T421 %>% group_by(CH04) %>% summarise(n=n(),
                                                          no_respuesta=sum(P21==(-9)),
                                                          porcentaje=no_respuesta/n,
                                                          media=mean(P21))
 ```
+
 ```{r s_intensi}
 usu_individual_T421 %>% group_by(INTENSI) %>% summarise(n=n(),
                                                          no_respuesta=sum(P21==(-9)),
                                                          porcentaje=no_respuesta/n,
                                                          media=mean(P21))
 ```
+
 ```{r s_reg}
 usu_individual_T421 %>% group_by(NIVEL_ED) %>% summarise(n=n(),
                                                          no_respuesta=sum(P21==(-9)),
@@ -53,12 +131,85 @@ usu_individual_T421 %>% group_by(NIVEL_ED) %>% summarise(n=n(),
                                                          media=mean(P21))
 ```
 
-## Including Plots
+# Modelo líneal simple
 
-You can also embed plots, for example:
+## analizo variable a explicar
 
-```{r pressure, echo=FALSE}
-plot(pressure)
+```{r inic}
+
+usu_individual_T421 %>% filter(P21!=(-9) & P21>0)->baseAjustada
+par(mfrow = c(1, 2))
+
+hist(baseAjustada$P21, main = "Ingreso", col = "blue")
+hist(log(baseAjustada$P21), main = "Logaritmo del ingreso", col = "green")
+
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+## Hago una prueba de la regresión lineal
+
+En primer lugar vamos a generar un modelo líneal simple. La formula será la siguiente:
+
+$E(ingreso de ocupación principal) = β0 +β1informalidad+β2edad·rol+β3genero+β4ingreso de ocupación secundaria+$
+$β5rama+β6oficio+β7aglomerado+β8intensidad de la ocupación principal$ 
+
+```{r lm}
+
+RL2<-function(baseRL, baseIMP){
+    
+    #se obtiene el logaritmo de la P21
+    baseAjustada$Y <- log(baseAjustada$P21)
+    hist(log(baseAjustada$P21))
+    #se genera el modelo según la categoría ocupacional, intensi y serv_domestico
+    
+      modelo <- lm( Y ~ INF + CH06*rol + CH04 +TOT_P12+ rama.eph+ car2+AGLOMERADO+INTENSI, data=baseAjustada )
+      baseRL3<-baseRL2 %>% select(AGLOMERADO, EST_COD,CH04, EDAD, EDUC, INTENSI)
+   
+    
+    
+    
+    
+    
+    
+    
+# se genera la predicción a una base que tiene solo las variables que se toman en
+# cuenta en el modelo y se agrega a la base original filtrada por la categoría ocupacional correspondiente
+    baseRL3$P21_predicho <- predict(modelo, baseRL3)
+    cbind(baseRL2, baseRL3$P21_predicho)->baseRL2
+    names(baseRL2)[names(baseRL2) == "baseRL3$P21_predicho"] <- "P21_predicho"
+    
+    
+    
+    
+      error_standard <- sigma(modelo)
+      baseRL2$error <- rnorm(nrow(baseRL2),0,error_standard) 
+      baseRL2$error <- ifelse(baseRL2$error>3*error_standard, 3*error_standard,baseRL2$error)
+      baseRL2$error <- ifelse(baseRL2$error< -3*error_standard, -3*error_standard,baseRL2$error)
+      baseRL2$P21_con_error<-baseRL2$P21_predicho+baseRL2$error
+      baseRL2$P21_con_error_exp<-exp(as.numeric(baseRL2$P21_con_error))
+      baseRL2$P21_final<-ifelse(is.na(baseRL2$P21_i), round(baseRL2$P21_con_error_exp,0), baseRL2$P21_i)
+    
+    
+    #Genero tabla o hago el bind
+    if(i==1){
+      baseFinal<-baseRL2
+    }else{
+      baseFinal<-rbind(baseFinal, baseRL2)
+    }
+  
+  
+  if(iteracion>0){
+    modelos<-list(model1, model2, model3)
+    retorno<-list(baseFinal, modelos)
+    
+  }else{
+    retorno<-list(baseFinal)
+  }
+  
+  return(retorno)
+  
+  
+}
+
+
+```
+
