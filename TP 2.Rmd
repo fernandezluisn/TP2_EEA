@@ -1,19 +1,25 @@
 ---
 title: "Trabajo Práctico 2,  EEA"
-author: "Luis Nahuel Fernández"
+author: "Luis Nahuel Fernández y Andrés Sandoval"
 date: '2022-10-30'
-output: html_document
+output: 
+  rmdformats::robobook:
+    code_folding: hide
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 library(dplyr)
 library(here)
+library(knitr)
+library(ltm)
+library(kableExtra)
 
 setwd(here())
+source("funciones/funciones.r")
 
-usu_individual_T421 <- read.csv("EPH_usu_4_Trim_2021_txt/usu_individual_T421.txt", sep=";")
-usu_individual_T421 %>% filter(ESTADO==1)->usu_individual_T421
+usu_individual_T421 <- read.csv("EPH_usu_2do_Trim_2022_txt/usu_individual_T222.txt.txt", sep=";")
+usu_individual_T421 %>% filter(ESTADO==1 & CAT_OCUP==3)->usu_individual_T421
 
 auxiliares<-function(base){
 
@@ -33,23 +39,19 @@ auxiliares<-function(base){
     ESTADO==1 & CAT_OCUP== 3 & JERARQUIA==3 & CALIFICACION==2 ~  "tecnicos",
     ESTADO==1 & CAT_OCUP== 3 & JERARQUIA==3 & CALIFICACION==3 ~  "operativos",
     ESTADO==1 & CAT_OCUP== 3 & JERARQUIA==3 & CALIFICACION==4 ~  "Obrero NC",
-    ESTADO==1 & CAT_OCUP==2 & (NIVEL_ED==6 | NIVEL_ED==5) ~ "CP_calif",
-    ESTADO==1 & CAT_OCUP==2 & NIVEL_ED!=6 | NIVEL_ED!=5 ~ "CP_no_calif",
-    ESTADO==1 & CAT_OCUP== 1 ~ "Patron",
     TRUE ~ "Otro"
     ))->base
   
-  base %>%  mutate(INF = case_when(
-    PP04C<6 & d5>1 & d5<6 & CAT_OCUP== 1  ~  "Patron INF",
-    PP04C>5 & (d5<1 | d5>=6) & CAT_OCUP== 1  ~  "Patron formal",
-    PP04C<6 & d5>1 & d5<6 & CAT_OCUP== 2  ~  "CP INF",
-    PP04C>5 & (d5<1 | d5>=6) & CAT_OCUP== 2  ~  "CP formal",
-    CAT_OCUP== 3 & PP07H==2 &  PP04C>5 & PP04B1==2  ~  "inf_for",
-    CAT_OCUP== 3 & PP07H==2 &  PP04C<6 & PP04B1==2 ~ "inf_inf",
-    CAT_OCUP== 3 & PP07H==2 & PP04B1==1 ~ "inf_hog",
-    CAT_OCUP== 3 & PP07H==1 & PP04B1==1 ~ "form_hog",
-    CAT_OCUP== 3 & PP07H==1 &  PP04C>5 & PP04B1==2   ~ "form_form",
-    CAT_OCUP== 3 & PP07H==1 &  PP04C<6 & PP04B1==2   ~ "form_inf"
+  
+  
+    base %>%  mutate(INF = case_when(
+    
+    CAT_OCUP== 3 & PP07H==2 &  PP04C>5 & PP04B1==2  ~  "Informal",
+    CAT_OCUP== 3 & PP07H==2 &  PP04C<6 & PP04B1==2 ~ "Informal",
+    CAT_OCUP== 3 & PP07H==2 & PP04B1==1 ~ "Informal",
+    CAT_OCUP== 3 & PP07H==1 & PP04B1==1 ~ "Formal",
+    CAT_OCUP== 3 & PP07H==1 &  PP04C>5 & PP04B1==2   ~ "Formal",
+    CAT_OCUP== 3 & PP07H==1 &  PP04C<6 & PP04B1==2   ~ "Formal"
     ))->base
   
   base$CH03<-as.factor(base$CH03)
@@ -74,18 +76,21 @@ auxiliares<-function(base){
   base$car1<-as.factor(base$car1)
   base$car2<-as.factor(base$car2)
   
-  base<-funcionesEPH::entra.cuchillo.salen.las.ramas(base)
+  base<-entra.cuchillo.salen.las.ramas(base)
   
   return(base)
   
 }
 
 usu_individual_T421<-auxiliares(usu_individual_T421)
+usu_individual_T421$rama.eph<-as.factor(usu_individual_T421$rama.eph)
 ```
 
-# Características de la no respuesta
+# Aclaración sobre el trabajo
 
-Se trabajará solo con los ocupados.
+Se trabajará solo con los ocupados ya que la naturaleza del ingreso es distinta según la categoría ocupacional y por lo tanto para poder obtener mejores resultados trabajaremos solo con la subpoblación de asalariados en el 2do trimestre de 2022.
+
+# Características de la no respuesta
 
 Hay tres tipos de no respuesta
 
@@ -95,121 +100,91 @@ MAR:  Missing at random. Hay variables que influencian la no respuesta en un mar
 
 MNAR: Missing Not at Random. La no respuesta no es aleatoria, dependiendo por entero de otras variables o incluso de sí misma. Es el caso más problemático de todos. Ejemplo de esto pueden ser las encuestas sobre consumo de drogas donde las mismas variables de estudio se condicionan a sí mismas generando sesgos en la no respuesta. 
 
-```{r s_cat_ocup}
-usu_individual_T421 %>% group_by(CAT_OCUP) %>% summarise(n=n(),
-                                                         no_respuesta=sum(P21==(-9)),
-                                                         porcentaje=no_respuesta/n,
-                                                         media=mean(P21))
-```
+# La no respuesta en la EPH
 
 
 ```{r s_rol}
 usu_individual_T421 %>% group_by(rol) %>% summarise(n=n(),
                                                          no_respuesta=sum(P21==(-9)),
                                                          porcentaje=no_respuesta/n,
-                                                         media=mean(P21))
+                                                         media=mean(P21))->roles
+roles[order(roles$media),]->roles
+roles %>% 
+  knitr::kable(format = "html",
+               align = "lccrr",
+               caption = "No respuesta y media del ingreso según rol",
+               digits = 2) %>% 
+  kable_material(lightable_options = c("striped", "hover") , html_font = "Cambria" )
 ```
+
+
 
 ```{r s_sexo}
 usu_individual_T421 %>% group_by(CH04) %>% summarise(n=n(),
                                                          no_respuesta=sum(P21==(-9)),
                                                          porcentaje=no_respuesta/n,
-                                                         media=mean(P21))
+                                                         media=mean(P21))->sexo
+sexo%>% 
+  knitr::kable(format = "html",
+               align = "lccrr",
+               caption = "No respuesta y media del ingreso según sexo",
+               digits = 2) %>% 
+  kable_material(lightable_options = c("striped", "hover") , html_font = "Cambria" )
 ```
+
+
+
 
 ```{r s_intensi}
 usu_individual_T421 %>% group_by(INTENSI) %>% summarise(n=n(),
                                                          no_respuesta=sum(P21==(-9)),
                                                          porcentaje=no_respuesta/n,
-                                                         media=mean(P21))
+                                                         media=mean(P21))->intensidad
+
+intensidad$INTENSI<-c("Subocupado",
+                      "Ocupado",
+                      "Sobreocupado",
+                     "Ocupado que no trabajó en la
+ semana "
+)
+
+intensidad[order(intensidad$media),]->intensidad
+
+intensidad%>% 
+  knitr::kable(format = "html",
+               align = "lccrr",
+               caption = "No respuesta y media del ingreso según intensidad laboral",
+               digits = 2) %>% 
+  kable_material(lightable_options = c("striped", "hover") , html_font = "Cambria" )
 ```
+
+
+
 
 ```{r s_reg}
 usu_individual_T421 %>% group_by(NIVEL_ED) %>% summarise(n=n(),
                                                          no_respuesta=sum(P21==(-9)),
                                                          porcentaje=no_respuesta/n,
-                                                         media=mean(P21))
+                                                         media=mean(P21))->nivel_educativo
+
+nivel_educativo$NIVEL_ED<-c("Primario incompleto",
+                            "Primario completo",
+                            "Secundario incompleto",
+                            "Secundario completo",
+                            "Universitario incompleto",
+                            "Universitario completo",
+                            "NS/NR")
+
+nivel_educativo[order(nivel_educativo$media),]->nivel_educativo
+
+
+nivel_educativo%>% 
+  knitr::kable(format = "html",
+               align = "lccrr",
+               caption = "No respuesta y media del ingreso según nivel educativo",
+               digits = 2) %>% 
+  kable_material(lightable_options = c("striped", "hover") , html_font = "Cambria" )
 ```
 
-# Modelo líneal simple
 
-## analizo variable a explicar
-
-```{r inic}
-
-usu_individual_T421 %>% filter(P21!=(-9) & P21>0)->baseAjustada
-par(mfrow = c(1, 2))
-
-hist(baseAjustada$P21, main = "Ingreso", col = "blue")
-hist(log(baseAjustada$P21), main = "Logaritmo del ingreso", col = "green")
-
-```
-
-## Hago una prueba de la regresión lineal
-
-En primer lugar vamos a generar un modelo líneal simple. La formula será la siguiente:
-
-$E(ingreso de ocupación principal) = β0 +β1informalidad+β2edad·rol+β3genero+β4ingreso de ocupación secundaria+$
-$β5rama+β6oficio+β7aglomerado+β8intensidad de la ocupación principal$ 
-
-```{r lm}
-
-RL2<-function(baseRL, baseIMP){
-    
-    #se obtiene el logaritmo de la P21
-    baseAjustada$Y <- log(baseAjustada$P21)
-    hist(log(baseAjustada$P21))
-    #se genera el modelo según la categoría ocupacional, intensi y serv_domestico
-    
-      modelo <- lm( Y ~ INF + CH06*rol + CH04 +TOT_P12+ rama.eph+ car2+AGLOMERADO+INTENSI, data=baseAjustada )
-      baseRL3<-baseRL2 %>% select(AGLOMERADO, EST_COD,CH04, EDAD, EDUC, INTENSI)
-   
-    
-    
-    
-    
-    
-    
-    
-# se genera la predicción a una base que tiene solo las variables que se toman en
-# cuenta en el modelo y se agrega a la base original filtrada por la categoría ocupacional correspondiente
-    baseRL3$P21_predicho <- predict(modelo, baseRL3)
-    cbind(baseRL2, baseRL3$P21_predicho)->baseRL2
-    names(baseRL2)[names(baseRL2) == "baseRL3$P21_predicho"] <- "P21_predicho"
-    
-    
-    
-    
-      error_standard <- sigma(modelo)
-      baseRL2$error <- rnorm(nrow(baseRL2),0,error_standard) 
-      baseRL2$error <- ifelse(baseRL2$error>3*error_standard, 3*error_standard,baseRL2$error)
-      baseRL2$error <- ifelse(baseRL2$error< -3*error_standard, -3*error_standard,baseRL2$error)
-      baseRL2$P21_con_error<-baseRL2$P21_predicho+baseRL2$error
-      baseRL2$P21_con_error_exp<-exp(as.numeric(baseRL2$P21_con_error))
-      baseRL2$P21_final<-ifelse(is.na(baseRL2$P21_i), round(baseRL2$P21_con_error_exp,0), baseRL2$P21_i)
-    
-    
-    #Genero tabla o hago el bind
-    if(i==1){
-      baseFinal<-baseRL2
-    }else{
-      baseFinal<-rbind(baseFinal, baseRL2)
-    }
-  
-  
-  if(iteracion>0){
-    modelos<-list(model1, model2, model3)
-    retorno<-list(baseFinal, modelos)
-    
-  }else{
-    retorno<-list(baseFinal)
-  }
-  
-  return(retorno)
-  
-  
-}
-
-
-```
 

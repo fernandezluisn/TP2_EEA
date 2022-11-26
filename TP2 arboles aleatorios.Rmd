@@ -1,0 +1,81 @@
+---
+title: "Arboles aleatorios"
+author: "Luis Nahuel Fernández y Andrés sandoval"
+date: '2022-11-26'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+remove(list=ls())
+gc()
+library(dplyr)
+library(here)
+library(knitr)
+library(ltm)
+library(kableExtra)
+
+library(tidyverse)
+library(tidymodels)
+library(gridExtra)
+
+setwd(here())
+source("funciones/funciones.r")
+
+usu_individual_T421 <- read.csv("EPH_usu_2do_Trim_2022_txt/usu_individual_T222.txt.txt", sep=";")
+usu_individual_T421 %>% filter(ESTADO==1 & CAT_OCUP==3)->usu_individual_T421
+
+usu_individual_T421<-auxiliares(usu_individual_T421)
+usu_individual_T421$rama.eph<-as.factor(usu_individual_T421$rama.eph)
+```
+
+```{r}
+varImpPlot(m1, sort=TRUE, n.var=min(30, nrow(m1$importance)),
+           type=NULL, class=NULL, scale=TRUE, 
+           main=deparse(substitute(m1))) 
+```
+
+
+```{r iter}
+
+library(Metrics)
+library(randomForest)
+usu_individual_T421 <- read.csv("EPH_usu_2do_Trim_2022_txt/usu_individual_T222.txt.txt", sep=";")
+usu_individual_T421 %>% filter(CAT_OCUP==3)->usu_individual_T421
+
+usu_individual_T421<-auxiliares(usu_individual_T421)
+usu_individual_T421$rama.eph<-as.factor(usu_individual_T421$rama.eph)
+
+for (n in 1:100) {
+  
+  asalNulos<-ponerNulos(usu_individual_T421)
+  sum(is.na(asalNulos$P21_i))
+  baseTrain<-asalNulos %>% filter(!is.na(P21_i))
+  
+  
+  baseActual2<-baseTrain[,c("P21_i","INF", "CH06","CH04","rol", "rama.eph", "NIVEL_ED", "car2", "AGLOMERADO")]
+  
+  m1 <- randomForest(
+  formula = P21_i ~ .,
+  data    = baseActual2
+)
+  baseTest<-asalNulos %>% filter(is.na(P21_i))
+
+  predict(m1,baseTest)->baseTest$P21_final
+
+  if(n==1){
+    sesgo<-c("Bias", "Standard",Metrics::bias(baseTest$P21, baseTest$P21_final))
+    tabla_final<- rbind(metrics(baseTest,truth=P21, estimate=P21_final),sesgo)
+
+  }else{
+    sesgo<-c("Bias", "Standard",Metrics::bias(baseTest$P21, baseTest$fitted_exp))
+    tablaActual<-  rbind(metrics(baseTest,truth=P21, estimate=fitted_exp),sesgo)
+    tablaActual[, paste0("prueba_",n)]<-tablaActual[,".estimate"]
+    tablaActual[,".estimate"]<-NULL
+    tabla_final<- left_join(tabla_final,tablaActual, by=c(".metric",".estimator"))
+
+  }
+}
+
+```
+

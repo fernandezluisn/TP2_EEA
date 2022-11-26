@@ -1,0 +1,162 @@
+---
+title: "TP2 Regresión lineal simple"
+author: "Luis Nahuel Fernández y Andrés sandoval"
+date: '2022-11-26'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+remove(list=ls())
+library(dplyr)
+library(here)
+library(knitr)
+library(ltm)
+library(kableExtra)
+
+library(tidyverse)
+library(tidymodels)
+library(gridExtra)
+
+setwd(here())
+source("funciones/funciones.r")
+
+usu_individual_T421 <- read.csv("EPH_usu_2do_Trim_2022_txt/usu_individual_T222.txt.txt", sep=";")
+usu_individual_T421 %>% filter(ESTADO==1 & CAT_OCUP==3)->usu_individual_T421
+
+usu_individual_T421<-auxiliares(usu_individual_T421)
+usu_individual_T421$rama.eph<-as.factor(usu_individual_T421$rama.eph)
+```
+
+# Modelo líneal simple
+
+## analizo variable a explicar
+
+```{r inic}
+
+usu_individual_T421 %>% filter(P21!=(-9) & P21>0)->baseAjustada
+par(mfrow = c(1, 2))
+
+# hist(baseAjustada$P21, main = "Ingreso", col = "blue")
+plot(density(baseAjustada$P21), main="Ingreso", col="blue")
+plot(density(log(baseAjustada$P21)), main="Logaritmo del ingreso", col="green")
+# hist(log(baseAjustada$P21), main = "Logaritmo del ingreso", col = "green")
+
+```
+
+```{r test1}
+library(nortest)
+ad.test(baseAjustada$P21)
+```
+
+```{r test2}
+ad.test(log(baseAjustada$P21))
+```
+
+## Hago una prueba de la regresión lineal
+
+En primer lugar vamos a generar un modelo líneal simple. La formula será la siguiente:
+
+$E(ingreso de ocupación principal) = β0 +β1informalidad+β2edad+β3genero+β4rol+$
+$β5rama+β6oficio+β7aglomerado+β8intensidad de la ocupación principal$ 
+
+El oficio y la categoría de informalidad se colapsaron para que no queden categorías a predecir que no se encuentren en el módelo.
+
+```{r}
+baseAjustada$Y <- log(baseAjustada$P21)
+modelo <- lm( Y ~ INF + CH06 + CH04 +rol+ rama.eph+ car2+AGLOMERADO+INTENSI, data=baseAjustada,
+              weights = PONDERA)
+plot(modelo)
+```
+
+```{r summa}
+
+tidy_2 <- tidy(modelo, conf.int = TRUE)
+tidy_2%>% 
+  knitr::kable(format = "html",
+               align = "lccrr",
+               caption = "Coeficientes modelo",
+               digits = 2) %>% 
+  kable_material(lightable_options = c("striped", "hover") , html_font = "Cambria" )
+
+```
+
+Cómo ver R2 del log
+
+```{r}
+summary(modelo)
+```
+
+
+```{r lm}
+library(Metrics)
+usu_individual_T421 <- read.csv("EPH_usu_2do_Trim_2022_txt/usu_individual_T222.txt.txt", sep=";")
+usu_individual_T421 %>% filter(CAT_OCUP==3)->usu_individual_T421
+
+usu_individual_T421<-auxiliares(usu_individual_T421)
+usu_individual_T421$rama.eph<-as.factor(usu_individual_T421$rama.eph)
+
+for (n in 1:100) {
+  
+  asalNulos<-ponerNulos(usu_individual_T421)
+  sum(is.na(asalNulos$P21_i))
+  asalNulos$Y <- log(asalNulos$P21_i)
+  baseTrain<-asalNulos %>% filter(!is.na(Y))
+  modelo <- lm( Y ~ INF + CH06 + CH04 +rol+ rama.eph+ car2+AGLOMERADO+INTENSI, data=baseTrain,
+              weights = PONDERA)
+  
+  baseTest<-asalNulos %>% filter(is.na(Y))
+
+  baseTest$fitted_exp<-exp(predict(modelo, baseTest))
+
+  if(n==1){
+    sesgo<-c("Bias", "Standard",Metrics::bias(baseTest$P21, baseTest$fitted_exp))
+    tabla_final<- rbind(metrics(baseTest,truth=P21, estimate=fitted_exp),sesgo)
+
+  }else{
+    sesgo<-c("Bias", "Standard",Metrics::bias(baseTest$P21, baseTest$fitted_exp))
+    tablaActual<-  rbind(metrics(baseTest,truth=P21, estimate=fitted_exp),sesgo)
+    tablaActual[, paste0("prueba_",n)]<-tablaActual[,".estimate"]
+    tablaActual[,".estimate"]<-NULL
+    tabla_final<- left_join(tabla_final,tablaActual, by=c(".metric",".estimator"))
+
+  }
+}
+
+
+```
+
+
+```{r error_c_m}
+
+library(vioplot)
+
+res<-t(tabla_final[1,3:102])
+vioplot(res, main="RMSE", col="blue")
+
+```
+
+```{r mae}
+
+library(vioplot)
+
+res<-t(tabla_final[3,3:102])
+names(res)<-c("RL")
+vioplot(res, main="MAE", col="blue")
+
+```
+```{r mae}
+
+
+res<-t(tabla_final[2,3:102])
+vioplot(res, main="R2", col="blue")
+
+```
+
+```{r sesgo}
+
+
+res<-as.numeric(t(tabla_final[4,3:102]))
+vioplot(res, main="BIAS", col="blue")
+
+```

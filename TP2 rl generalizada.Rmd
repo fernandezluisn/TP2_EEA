@@ -1,0 +1,128 @@
+---
+title: "Tp2 generalizada"
+author: "Luis Nahuel Fernández y Andrés sandoval"
+date: '2022-11-26'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+library(here)
+library(knitr)
+library(ltm)
+library(kableExtra)
+
+setwd(here())
+source("funciones/funciones.r")
+
+usu_individual_T421 <- read.csv("EPH_usu_2do_Trim_2022_txt/usu_individual_T222.txt.txt", sep=";")
+usu_individual_T421 %>% filter(ESTADO==1 & CAT_OCUP==3 & P21>0)->usu_individual_T421
+
+auxiliares<-function(base){
+
+
+  base$d5<-as.numeric(substr(base$PP04D_COD,nchar(base$PP04D_COD),nchar(base$PP04D_COD)))
+  
+  base$CALIFICACION<-as.numeric(substr(base$PP04D_COD,nchar(base$PP04D_COD),nchar(base$PP04D_COD)))
+  base$JERARQUIA<-as.numeric(substr(base$PP04D_COD,nchar(base$PP04D_COD)-2,nchar(base$PP04D_COD)-2))
+  # base$JERARQUIA<-ifelse(is.na(base$JERARQUIA), 0, base$JERARQUIA)
+
+  base$CALIFICACION<-as.factor(base$CALIFICACION)
+  base$JERARQUIA<-as.factor(base$JERARQUIA)
+  
+  base %>%  mutate(rol = case_when(
+    ESTADO==1 & CAT_OCUP== 3 & (JERARQUIA==2 | JERARQUIA==0) ~  "Dirección",
+    ESTADO==1 & CAT_OCUP== 3 & JERARQUIA==3 & CALIFICACION==1 ~  "Profesional",
+    ESTADO==1 & CAT_OCUP== 3 & JERARQUIA==3 & CALIFICACION==2 ~  "tecnicos",
+    ESTADO==1 & CAT_OCUP== 3 & JERARQUIA==3 & CALIFICACION==3 ~  "operativos",
+    ESTADO==1 & CAT_OCUP== 3 & JERARQUIA==3 & CALIFICACION==4 ~  "Obrero NC",
+    TRUE ~ "Otro"
+    ))->base
+  
+  
+  
+    base %>%  mutate(INF = case_when(
+    
+    CAT_OCUP== 3 & PP07H==2 &  PP04C>5 & PP04B1==2  ~  "Informal",
+    CAT_OCUP== 3 & PP07H==2 &  PP04C<6 & PP04B1==2 ~ "Informal",
+    CAT_OCUP== 3 & PP07H==2 & PP04B1==1 ~ "Informal",
+    CAT_OCUP== 3 & PP07H==1 & PP04B1==1 ~ "Formal",
+    CAT_OCUP== 3 & PP07H==1 &  PP04C>5 & PP04B1==2   ~ "Formal",
+    CAT_OCUP== 3 & PP07H==1 &  PP04C<6 & PP04B1==2   ~ "Formal"
+    ))->base
+  
+  base$CH03<-as.factor(base$CH03)
+  base$CAT_OCUP<-as.factor(base$CAT_OCUP)
+  base$NIVEL_ED<-as.factor(base$NIVEL_ED)
+  base$CH04<-as.factor(base$CH04)
+  base$AGLOMERADO<-as.factor(base$AGLOMERADO)
+  base$REGION<-as.factor(base$REGION)
+  base$INF<-as.factor(base$INF)
+  base$rol<-as.factor(base$rol)
+  
+  base$PP04C<-as.factor(base$PP04C)
+  
+  # base$CH06<-(base$CH06-min(base$CH06))/(max(base$CH06)- min(base$CH06))
+  
+  base$TECNO<-substr(base$PP04D_COD,4,4)
+  base$car1<-substr(base$PP04D_COD,1,1)
+  base$car2<-substr(base$PP04D_COD,1,2)
+  
+  base$TECNO<-as.factor(base$TECNO)
+  
+  base$car1<-as.factor(base$car1)
+  base$car2<-as.factor(base$car2)
+  
+  base<-entra.cuchillo.salen.las.ramas(base)
+  
+  return(base)
+  
+}
+
+usu_individual_T421<-auxiliares(usu_individual_T421)
+usu_individual_T421$rama.eph<-as.factor(usu_individual_T421$rama.eph)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+library(gamlss)
+library(gamlss.add)
+# library(gamlss.util)
+
+base_eph<-usu_individual_T421[,c("P21", "CH06", "CH04", "TOT_P12", "rol")]
+
+fit_gamlss = gamlss(P21 ~ pb(CH06, df = 1), 
+                    data = base_eph,
+                    sigma.formula = ~pb(CH06, df = 1), 
+                    family = GA(mu.link = "log",
+                    sigma.link ="log"))
+
+
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+summary(fit_gamlss)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+```{r}
+
+gamlss::fittedPlot(fit_gamlss, x = base_eph$CH06)
+```
+
+```{r}
+mu_vec = predict(fit_gamlss, newdata = data.frame(CH06=base_eph$CH06), what="mu", type='response')
+sigma_vec = predict(fit_gamlss, newdata = data.frame(CH06=base_eph$CH06), what="sigma", type='response')
+```
+
