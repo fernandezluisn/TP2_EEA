@@ -8,6 +8,7 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 remove(list=ls())
+gc()
 library(dplyr)
 library(here)
 library(knitr)
@@ -17,6 +18,7 @@ library(kableExtra)
 library(tidyverse)
 library(tidymodels)
 library(gridExtra)
+library(reldist)
 
 setwd(here())
 source("funciones/funciones.r")
@@ -89,41 +91,53 @@ summary(modelo)
 
 
 ```{r lm}
-library(Metrics)
-usu_individual_T421 <- read.csv("EPH_usu_2do_Trim_2022_txt/usu_individual_T222.txt.txt", sep=";")
-usu_individual_T421 %>% filter(CAT_OCUP==3)->usu_individual_T421
+# library(Metrics)
+# usu_individual_T421 <- read.csv("EPH_usu_2do_Trim_2022_txt/usu_individual_T222.txt.txt", sep=";")
+# usu_individual_T421 %>% filter(CAT_OCUP==3)->usu_individual_T421
+# 
+# usu_individual_T421<-auxiliares(usu_individual_T421)
+# usu_individual_T421$rama.eph<-as.factor(usu_individual_T421$rama.eph)
+# 
+# giniTot<-gini(usu_individual_T421$P21, usu_individual_T421$PONDIIO)
+# for (n in 1:100) {
+#   
+#   asalNulos<-ponerNulos(usu_individual_T421)
+#   sum(is.na(asalNulos$P21_i))
+#   asalNulos$Y <- log(asalNulos$P21_i)
+#   baseTrain<-asalNulos %>% filter(!is.na(Y))
+#   modelo <- lm( Y ~ INF + CH06 + CH04 +rol+ rama.eph+ car2+AGLOMERADO+INTENSI, data=baseTrain,
+#               weights = PONDERA)
+#   
+#   baseTest<-asalNulos %>% filter(is.na(Y))
+# 
+#   baseTest$fitted_exp<-exp(predict(modelo, baseTest))
+#   
+#   c(baseTrain$P21, baseTest$fitted_exp)->salarios
+#   c(baseTrain$PONDIIO, baseTest$PONDIIO)->ponderadores
+# 
+#   gini(salarios,ponderadores)->gini2
+#   
+#   if(n==1){
+#     sesgo<-c("Bias", "Standard",Metrics::bias(baseTest$P21, baseTest$fitted_exp))
+#     GF<-c("Gini", "Standard",gini2-giniTot)
+# 
+#     tabla_final<- rbind(metrics(baseTest,truth=P21, estimate=fitted_exp),sesgo,GF)
+# 
+#   }else{
+#     sesgo<-c("Bias", "Standard",Metrics::bias(baseTest$P21, baseTest$fitted_exp))
+#     GF<-c("Gini", "Standard",gini2-giniTot)
+# 
+#     tablaActual<-  rbind(metrics(baseTest,truth=P21, estimate=fitted_exp),sesgo,GF)
+#     tablaActual[, paste0("prueba_",n)]<-tablaActual[,".estimate"]
+#     tablaActual[,".estimate"]<-NULL
+#     tabla_final<- left_join(tabla_final,tablaActual, by=c(".metric",".estimator"))
+# 
+#   }
+# }
+# 
+# write.csv(tabla_final, "metricas_RLs.csv", row.names = FALSE)
 
-usu_individual_T421<-auxiliares(usu_individual_T421)
-usu_individual_T421$rama.eph<-as.factor(usu_individual_T421$rama.eph)
-
-for (n in 1:100) {
-  
-  asalNulos<-ponerNulos(usu_individual_T421)
-  sum(is.na(asalNulos$P21_i))
-  asalNulos$Y <- log(asalNulos$P21_i)
-  baseTrain<-asalNulos %>% filter(!is.na(Y))
-  modelo <- lm( Y ~ INF + CH06 + CH04 +rol+ rama.eph+ car2+AGLOMERADO+INTENSI, data=baseTrain,
-              weights = PONDERA)
-  
-  baseTest<-asalNulos %>% filter(is.na(Y))
-
-  baseTest$fitted_exp<-exp(predict(modelo, baseTest))
-
-  if(n==1){
-    sesgo<-c("Bias", "Standard",Metrics::bias(baseTest$P21, baseTest$fitted_exp))
-    tabla_final<- rbind(metrics(baseTest,truth=P21, estimate=fitted_exp),sesgo)
-
-  }else{
-    sesgo<-c("Bias", "Standard",Metrics::bias(baseTest$P21, baseTest$fitted_exp))
-    tablaActual<-  rbind(metrics(baseTest,truth=P21, estimate=fitted_exp),sesgo)
-    tablaActual[, paste0("prueba_",n)]<-tablaActual[,".estimate"]
-    tablaActual[,".estimate"]<-NULL
-    tabla_final<- left_join(tabla_final,tablaActual, by=c(".metric",".estimator"))
-
-  }
-}
-
-
+tabla_final<-read.csv("metricas/metricas_RLs.csv")
 ```
 
 
@@ -131,7 +145,7 @@ for (n in 1:100) {
 
 library(vioplot)
 
-res<-t(tabla_final[1,3:102])
+res<-as.numeric(t(tabla_final[1,3:102]))
 vioplot(res, main="RMSE", col="blue")
 
 ```
@@ -158,5 +172,13 @@ vioplot(res, main="R2", col="blue")
 
 res<-as.numeric(t(tabla_final[4,3:102]))
 vioplot(res, main="BIAS", col="blue")
+
+```
+
+```{r gini}
+
+
+res<-as.numeric(t(tabla_final[5,3:102]))
+vioplot(res, main="Indice de GINI", col="blue")
 
 ```

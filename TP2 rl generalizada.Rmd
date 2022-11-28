@@ -7,11 +7,14 @@ output: html_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+remove(list=ls())
+gc()
 library(dplyr)
 library(here)
 library(knitr)
 library(ltm)
 library(kableExtra)
+library(reldist)
 
 setwd(here())
 source("funciones/funciones.r")
