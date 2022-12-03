@@ -1,0 +1,214 @@
+---
+title: "Regresión Lasso"
+author: "Luis Nahuel Fernández y Andrés sandoval"
+date: '2022-11-26'
+output: html_document
+---
+
+El objetivo de este experimento es implementar un algoritmo de regresión Lasso
+para ver como son descartadas ciertas variables que presentan cierto grado de colinealidad
+y tener una compartiva con las variables que el algoritmo de Random Forest consideró más
+importantes. 
+
+
+## Regresión Lasso
+
+Seguimos considerando el modelamiento estándar
+
+$$ y = X\beta + \epsilon $$
+
+donde cada componente $\epsilon_i$ es una variable $N(0,1)$. En la regresión encontramos el vector de coefientes $\beta$ basados
+en el problema de optimización
+
+$$ \min_{\beta} \|y - X\beta \|^2_2 $$
+
+En lasso se agrega una restricción del tipo paramétrica sobre la magnitud de los coeficientes $\|\beta\|^2_1 \leq \lambda $. Este parámetro es llamado parámetro de penalización. 
+
+Una formulación análoga (equivalente matemáticamente) consiste en introducir la restricción dentro de la función objetivo, resultado la función objetivo del problema de Lasso en 
+
+$$ \min_{\beta} \|y - X\beta \|^2_2 + \lambda \|\beta\|^2_1 $$
+
+Notar que para $\lambda$ hay una función objetivo diferente, es decir, Lasso es un problema que depende de $\lambda$, cada elección de $\lambda$ produce un resultado diferente. Notar que introducir el término $\lambda \|\beta\|^2_1$ hace que la magnitud de $\beta$ no explote, pues es un término positivo en la función objetivo a minimizar.
+
+¿Por que consideramos la norma 1?  # TODO: COMPLETAR ESTO
+
+
+
+## Aplicación a nuestro dataset
+
+
+
+```{r setup, include=TRUE}
+knitr::opts_chunk$set(echo = TRUE)
+remove(list=ls())
+gc()
+library(here)
+library(dplyr)
+library(tidyverse)
+library(tidymodels)
+
+setwd(here())
+source("funciones\\funciones.r")
+
+usu_individual_T421 <- read.csv("EPH_usu_2do_Trim_2022_txt\\usu_individual_T222.txt.txt", sep=";")
+usu_individual_T421 %>% filter(ESTADO==1 & CAT_OCUP==3)->usu_individual_T421
+
+usu_individual_T421<-auxiliares(usu_individual_T421)
+usu_individual_T421$rama.eph<-as.factor(usu_individual_T421$rama.eph)
+
+head(usu_individual_T421)
+
+
+```
+
+
+```{r setup, include=TRUE}
+knitr::opts_chunk$set(echo = TRUE)
+
+for (n in 1:2) {
+  asalNulos<-ponerNulos(usu_individual_T421)
+  sum(is.na(asalNulos$P21_i))
+  baseTrain<-asalNulos %>% filter(!is.na(P21_i))
+  
+  
+  baseActual2<- baseTrain[,c("P21_i","INF", "CH06","CH04","rol", "rama.eph", "NIVEL_ED", "car2", "AGLOMERADO")]
+  
+  # X matriz de features
+  X <- data.matrix(baseActual2[, c("INF", "CH06","CH04","rol", "rama.eph", "NIVEL_ED", "car2", "AGLOMERADO")])
+  # Y logaritmo del ingreso
+  Y <- baseActual2$P21_i
+  
+  m1 <- glmnet(X, Y, family="gaussian",
+                intercept = F, alpha=1) 
+  
+  baseTest<-asalNulos %>% filter(is.na(P21_i))
+  
+  baseTest <- data.matrix(baseTest[, c("INF", "CH06","CH04","rol", "rama.eph", "NIVEL_ED", "car2", "AGLOMERADO")])
+
+  predict(m1,newx = baseTest)->baseTest$P21_final
+
+}
+
+
+```
+
+
+
+```{r setup, include=TRUE}
+knitr::opts_chunk$set(echo = TRUE)
+
+head(baseTest)
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+```{r setup, include=TRUE}
+knitr::opts_chunk$set(echo = TRUE)
+
+#install.packages("glmnet")
+library(glmnet)
+
+#——————————————–
+# Model
+#——————————————–
+lambda = 0.2
+
+#______________
+# X e Y
+#______________
+
+cols <- c("INF", "CH06","CH03", "CH15","CH08","PP07H","PP3E_TOT","PP04C", "PP07E","PP03D", "CH11", "CH16", "CH09" , "CH04", 
+          "rol", "rama.eph", "car2", "AGLOMERADO", 
+          "INTENSI", "NIVEL_ED")
+
+X <- data.matrix(usu_individual_T421[, c("INF", "CH06", "CH04", "rol", "rama.eph", "car2", "AGLOMERADO", "INTENSI")])
+
+usu_individual_T421 <-usu_individual_T421 %>% filter(P21>0) 
+
+usu_individual_T421$Y <- log(usu_individual_T421$P2)
+
+Y <- usu_individual_T421$Y
+
+
+#--- Results-------
+
+#——————————————–
+# Results (lambda=0.1)
+#——————————————–
+
+# lasso
+la.eq <- glmnet(X, Y, lambda=lambda,
+                family="gaussian",
+                intercept = F, alpha=1) 
+# Ridge
+ri.eq <- glmnet(X, Y, lambda=lambda,
+                family="gaussian",
+                intercept = F, alpha=0) 
+
+df.comp <- data.frame(
+    Lasso   = la.eq$beta[,1],
+    Ridge   = ri.eq$beta[,1]
+)
+df.comp
+    
+
+
+```
+
+```{r setup, include=TRUE}
+knitr::opts_chunk$set(echo = TRUE)
+
+
+# lasso
+la.eq <- glmnet(X, Y, family="gaussian", 
+                intercept = F, alpha=1) 
+# Ridge
+ri.eq <- glmnet(X, Y, family="gaussian", 
+                intercept = F, alpha=0) 
+
+x11(); par(mfrow=c(2,1)) 
+x11(); matplot(log(la.eq$lambda), t(la.eq$beta),
+                   type="l", main="Lasso", lwd=2)
+x11(); matplot(log(ri.eq$lambda), t(ri.eq$beta),
+                   type="l", main="Ridge", lwd=2)
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

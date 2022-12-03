@@ -253,13 +253,13 @@ entra.cuchillo.salen.las.ramas <- function(base){
   
   
   
-  base <- funcionesEPH::corregir.rama(base)
+  base <- corregir.rama(base)
   
-  base <- funcionesEPH::rama.caes1.0(base)
+  base <- rama.caes1.0(base)
   
-  base <- funcionesEPH::rama.caes1.0.pub(base)
+  base <-rama.caes1.0.pub(base)
   
-  base <- funcionesEPH::rama.eph.nombre(base)
+  base <- rama.eph.nombre(base)
   
   return(base)
   
@@ -279,7 +279,7 @@ auxiliares<-function(base){
   base$JERARQUIA<-as.factor(base$JERARQUIA)
   
   base %>%  mutate(rol = case_when(
-    ESTADO==1 & CAT_OCUP== 3 & (JERARQUIA==2 | JERARQUIA==0) ~  "Dirección",
+    ESTADO==1 & CAT_OCUP== 3 & (JERARQUIA==2 | JERARQUIA==0) ~  "Direcciï¿½n",
     ESTADO==1 & CAT_OCUP== 3 & JERARQUIA==3 & CALIFICACION==1 ~  "Profesional",
     ESTADO==1 & CAT_OCUP== 3 & JERARQUIA==3 & CALIFICACION==2 ~  "tecnicos",
     ESTADO==1 & CAT_OCUP== 3 & JERARQUIA==3 & CALIFICACION==3 ~  "operativos",
@@ -336,21 +336,21 @@ ponerNulos<-function(base){
     
   }
   
-  base<-base %>% filter(ESTADO==1)
+  base<-base %>% filter(ESTADO==1) # Ocupados,
   
-  base$CONTESTA<-ifelse(base$P21>0,1,0)
+  base$CONTESTA<-ifelse(base$P21>0,1,0) # Si es mayor a 0 (transformo a 0 o 1)
   #saquÃ¨ ch06
   modelo.logit<-glm(CONTESTA ~ REGION +CH06 +CH04 + CH03 +NIVEL_ED, data = base, family = "binomial")
   
-  base$probabilidad<-predict(modelo.logit, base, type="response")
+  base$probabilidad<-predict(modelo.logit, base, type="response") # Le agrego la probabilidad de la logit
   
   # tasa<-sum(base$P21==-9)/NROW(base)
-  baseFiltrada<-base %>% filter(P21>0)
-  baseFiltrada$P21_i<-baseFiltrada$P21
+  baseFiltrada<-base %>% filter(P21>0) # Nueva tabla que solo te quedas con P21 > 0 (SUELDOS)
+  baseFiltrada$P21_i<-baseFiltrada$P21 # Duplicaste la columna
   
-  baseFiltrada$limite<-runif(NROW(baseFiltrada),0,1)
+  baseFiltrada$limite<-runif(NROW(baseFiltrada),0,1) # Genera una columna con valores aleatorio uniformes 0 - 1
   
-  baseFiltrada$P21_i<-ifelse(baseFiltrada$probabilidad<baseFiltrada$limite,NA,baseFiltrada$P21_i)
+  baseFiltrada$P21_i<-ifelse(baseFiltrada$probabilidad<baseFiltrada$limite,NA,baseFiltrada$P21_i) # E
   
   baseFiltrada$imp<-ifelse(is.na(baseFiltrada$P21_i),1,0)
   
