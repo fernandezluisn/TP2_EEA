@@ -1,12 +1,54 @@
 ---
-title: "Regresión Lasso"
+title: "Regresión por Cuantiles"
 author: "Luis Nahuel Fernández y Andrés sandoval"
 date: '2022-11-26'
-output: html_document
+output: 
+  rmdformats::robobook:
+      code_folding: hide
 ---
 
 
-# Regresión por Cuantiles
+
+
+Vamos a introducir el concepto de regresión por cuantiles, lo que nos brinda una alternativa a predecir  más alla del valor medio. Dada una variable aleatoria $Y$, si consideramos el problema de minimización (Supongamos que por simplicidad en este punto que $Y$ es unidemensional)
+
+$$ \min_{\mu\in\mathbb{R}} E[|Y - \mu|]$$
+La solución corresponde a la mediana (Una demostración elegante puede encontrarse [aquí](https://math.stackexchange.com/questions/85448/why-does-the-median-minimize-ex-c)). Ahora bien, ¿Podemos encontrar otro cuantil diferente a la mediana usando un problema de optimización similar?. 
+
+Dada la variable aleatoria $Y$ con función acumulada de probabilidad $F_Y$, definimos el cuantil a nivel $\tau$ como
+
+$$ Q(\tau) = \inf\{ y: F(y) \geq \tau \} $$
+Consideremos además la siguiente función 
+$$p_{\tau}(x) = (\tau - \mathbb{1}_{x < 0})x $$
+Esta función nos permite encontrar cualquiera de los cuantiles resolviendo el problema de optimización
+
+$$ \min_{\mu\in\mathbb{R}} E[p_{\tau}(Y - \mu)] = \min_{\mu\in\mathbb{R}}\big( (\tau - 1)\int_{-\inf}^{\mu}(y - \mu)DF_y(y) + \tau\int_{\mu}^{\inf}(y - \mu)DF_y(y)\big)$$
+cuya solución es el cuantil a nivel $\tau$
+
+Adicionalmente, dado $X$, podemos definir los cuantiles de la distribución $Y|X$
+
+
+$$ Q_{Y|X}(\tau) = \inf\{ y: F_{Y|X}(y) \geq \tau \} $$
+
+Análogamente a la regresión lineal, en la regresión por cuantil el supuesto principal es que podemos escribir  $Q_{Y|X}(\tau)$ como una función lineal para un coeficiente $\beta_{\tau}$
+
+
+$$Q_{X|Y}(\tau) = X\beta_{\tau}$$
+
+y usando la el problema de minización presentado, dicho coeficiente puede ser estimado como
+
+
+$$ \beta_{\tau} = \arg \min_{\beta_{\tau}} E[p_{\tau}(Y - X\beta_{\tau})] $$
+Cuando $\tau = 0.5$ notar que estamos en el problema de regresión lineal clásico, pero en vez de considerar el error cuadrático, estamos considerando las desviaciones absolutas.
+
+
+## Regresión por cuantiles en el contexto de la predicción de los ingresos
+
+Para nuestro problema en particular, que involucra la predicción de los ingresos de los trabajadores asalariados, una técnica de regresión por cuantil puede ser útil para hacer estimaciones usando niveles de $tau$ elevados, debido a que es sabido que las personas tienden a informar valores más bajos de lo que realmente son. 
+
+En este trabajo haremos realizaremos 
+
+
 
 
 ```{r setup, include=FALSE}
@@ -20,8 +62,8 @@ library(tidymodels)
 library(vctrs)
 library(quantreg)
 library(dplyr)
-
-
+library(vioplot)
+library("reldist")
 
 setwd(here())
 source("funciones\\funciones.r")
@@ -38,37 +80,52 @@ head(usu_individual_T421)
 ```
 
 
-```{r , include=TRUE}
+```{r , include=FALSE}
 
 
-knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+# giniTot<-gini(usu_individual_T421$P21, usu_individual_T421$PONDIIO)
+# 
+# remove(tabla_final)
+# remove(tablaActual)
+# gc()
+# 
+# 
+# giniTot<-gini(usu_individual_T421$P21, usu_individual_T421$PONDIIO)
+# for (n in 1:100) {
+#   
+#   asalNulos<-ponerNulos(usu_individual_T421)
+#   sum(is.na(asalNulos$P21_i))
+#   asalNulos$Y <- asalNulos$P21_i
+#   baseTrain<-asalNulos %>% filter(!is.na(Y))
+#   modelo <- rq( Y ~ INF + CH06 + CH04 +rol+ rama.eph+ car2 +AGLOMERADO+ PP3E_TOT, data=baseTrain, tau = 0.9)
+#   
+#   baseTest<-asalNulos %>% filter(is.na(Y))
+# 
+#   baseTest$fitted_exp<-predict(modelo, baseTest)
+#   
+#   c(baseTrain$P21, baseTest$fitted_exp)->salarios
+#   c(baseTrain$PONDIIO, baseTest$PONDIIO)->ponderadores
+# 
+#   gini(salarios,ponderadores)->gini2
+#   
+#   if(n==1){
+#     sesgo<-c("Bias", "Standard",Metrics::bias(baseTest$P21, baseTest$fitted_exp))
+#     GF<-c("Gini", "Standard",gini2-giniTot)
+# 
+#     tabla_final<- rbind(metrics(baseTest,truth=P21, estimate=fitted_exp),sesgo,GF)
+# 
+#   }else{
+#     sesgo<-c("Bias", "Standard",Metrics::bias(baseTest$P21, baseTest$fitted_exp))
+#     GF<-c("Gini", "Standard",gini2-giniTot)
+# 
+#     tablaActual<-  rbind(metrics(baseTest,truth=P21, estimate=fitted_exp),sesgo,GF)
+#     tablaActual[, paste0("prueba_",n)]<-tablaActual[,".estimate"]
+#     tablaActual[,".estimate"]<-NULL
+#     tabla_final<- left_join(tabla_final,tablaActual, by=c(".metric",".estimator"))
+# 
+#   }
+# }
 
-for (n in 1:3) {
-  
-  asalNulos<-ponerNulos(usu_individual_T421)
-  sum(is.na(asalNulos$P21_i))
-  asalNulos$Y <- log(asalNulos$P21_i)
-  baseTrain<-asalNulos %>% filter(!is.na(Y))
-  # Consideramos un percentil de 0.9
-  modelo <- rq( Y ~ INF + CH06 + CH04 +rol+ rama.eph+ car2+AGLOMERADO+INTENSI, data=baseTrain, tau = 0.9)
-  
-  baseTest<-asalNulos %>% filter(is.na(Y))
-
-  baseTest$fitted_exp<-exp(predict(modelo, baseTest))
-
-  if(n==1){
-    sesgo<-c("Bias", "Standard",Metrics::bias(baseTest$P21, baseTest$fitted_exp))
-    tabla_final<- rbind(metrics(baseTest,truth=P21, estimate=fitted_exp),sesgo)
-
-  }else{
-    sesgo<-c("Bias", "Standard",Metrics::bias(baseTest$P21, baseTest$fitted_exp))
-    tablaActual<-  rbind(metrics(baseTest,truth=P21, estimate=fitted_exp),sesgo)
-    tablaActual[, paste0("prueba_",n)]<-tablaActual[,".estimate"]
-    tablaActual[,".estimate"]<-NULL
-    tabla_final<- left_join(tabla_final,tablaActual, by=c(".metric",".estimator"))
-
-  }
-}
 
 
 ```
@@ -88,17 +145,82 @@ knitr::opts_chunk$set(echo = FALSE)
 
 train_09 <-usu_individual_T421 %>% filter(P21>0)
 
-train_09$Y <- log(train_09$P21)
+train_09$Y <- train_09$P21
 
-modelo <- rq( Y ~ INF + CH06 + CH04 +rol+ rama.eph+ car2+AGLOMERADO+INTENSI, data=train_09, tau = 0.9)
+modelo <- rq( Y ~ INF + CH06 + CH04 +rol+ rama.eph+ car2+AGLOMERADO+PP3E_TOT, data=train_09, tau = 0.9)
 
-train_09$pred <- exp(predict(modelo, train_09[, c("INF", "CH06", "CH04", "rol", "rama.eph", "car2", "AGLOMERADO", "INTENSI")]))
+train_09$pred <- predict(modelo, train_09[, c("INF", "CH06", "CH04", "rol", "rama.eph", "car2", "AGLOMERADO", "PP3E_TOT")])
 
 
-boxplot(train_09[, c("pred", "P21")])
+boxplot(train_09[, c("P21", "pred")])
 ```
 
+
+```{r inic}
+
+plot(density(train_09$pred), main="Ingreso Predicho a nivel 0.9", col="blue")
+plot(density(train_09$P21), main="Distribución real del ingreso", col="green")
+
+
+```
+
+Se observa que cuando hacemos predicción a nivel 0.9 la distribución de los ingresos una mayor concetración en los valores altos, que corresponden a ingresos superiores a 200 mil pesos Argentinos. 
+
+
 ## Modelo a nivel 0.2
+
+
+
+```{r , include=FALSE}
+
+# 
+# giniTot<-gini(usu_individual_T421$P21, usu_individual_T421$PONDIIO)
+# 
+# remove(tabla_final)
+# remove(tablaActual)
+# gc()
+# 
+# 
+# giniTot<-gini(usu_individual_T421$P21, usu_individual_T421$PONDIIO)
+# for (n in 1:100) {
+# 
+#   asalNulos<-ponerNulos(usu_individual_T421)
+#   sum(is.na(asalNulos$P21_i))
+#   asalNulos$Y <- asalNulos$P21_i
+#   baseTrain<-asalNulos %>% filter(!is.na(Y))
+#   modelo <- rq( Y ~ INF + CH06 + CH04 +rol+ rama.eph+ car2+AGLOMERADO+PP3E_TOT, data=baseTrain, tau = 0.2)
+# 
+#   baseTest<-asalNulos %>% filter(is.na(Y))
+# 
+#   baseTest$fitted_exp<-predict(modelo, baseTest)
+# 
+#   c(baseTrain$P21, baseTest$fitted_exp)->salarios
+#   c(baseTrain$PONDIIO, baseTest$PONDIIO)->ponderadores
+# 
+#   gini(salarios,ponderadores)->gini2
+# 
+#   if(n==1){
+#     sesgo<-c("Bias", "Standard",Metrics::bias(baseTest$P21, baseTest$fitted_exp))
+#     GF<-c("Gini", "Standard",gini2-giniTot)
+# 
+#     tabla_final<- rbind(metrics(baseTest,truth=P21, estimate=fitted_exp),sesgo,GF)
+# 
+#   }else{
+#     sesgo<-c("Bias", "Standard",Metrics::bias(baseTest$P21, baseTest$fitted_exp))
+#     GF<-c("Gini", "Standard",gini2-giniTot)
+# 
+#     tablaActual<-  rbind(metrics(baseTest,truth=P21, estimate=fitted_exp),sesgo,GF)
+#     tablaActual[, paste0("prueba_",n)]<-tablaActual[,".estimate"]
+#     tablaActual[,".estimate"]<-NULL
+#     tabla_final<- left_join(tabla_final,tablaActual, by=c(".metric",".estimator"))
+# 
+#   }
+# }
+
+
+
+```
+
 
 
 ```{r , out.width="100%", include=TRUE}
@@ -109,13 +231,130 @@ knitr::opts_chunk$set(echo = FALSE)
 
 train_02 <-usu_individual_T421 %>% filter(P21>0)
 
-train_02$Y <- log(train_02$P21)
+train_02$Y <- train_02$P21
 
-modelo <- rq( Y ~ INF + CH06 + CH04 +rol+ rama.eph+ car2+AGLOMERADO+INTENSI, data=train_02, tau = 0.25)
+modelo <- rq( Y ~ INF + CH06 + CH04 +rol+ rama.eph+ car2+AGLOMERADO+PP3E_TOT, data=train_02, tau = 0.25)
 
-train_02$pred <- exp(predict(modelo, train_02[, c("INF", "CH06", "CH04", "rol", "rama.eph", "car2", "AGLOMERADO", "INTENSI")]))
+train_02$pred <- predict(modelo, train_02[, c("INF", "CH06", "CH04", "rol", "rama.eph", "car2", "AGLOMERADO", "PP3E_TOT")])
 
 
-boxplot(train_02[, c("pred", "P21")])
+boxplot(train_02[, c("P21", "pred")])
+
 ```
+
+
+
+```{r wea}
+
+plot(density(train_02$pred), main="Ingreso Predicho a nivel 0.2", col="blue")
+plot(density(train_02$P21), main="Distribución real del ingreso", col="green")
+
+
+```
+
+Se observa que cuando hacemos predicción a nivel 0.2 la distribución de los ingresos cae considerablemente y se sesga en los valores bajos.
+
+
+```{r}
+
+tabla_final_09<-read.csv("metricas/tabla_final_cuantil09.csv")
+tabla_final_02<-read.csv("metricas/tabla_final_cuantil02.csv")
+
+```
+
+# Métricas
+
+
+
+
+```{r mae}
+
+options(scipen=999)
+
+res<-t(tabla_final_09[3,3:ncol(tabla_final_09)])
+res2<-t(tabla_final_02[3,3:ncol(tabla_final_02)])
+names(res)<-c("RLQ-09")
+names(res)<-c("RLQ-02")
+
+as.data.frame(cbind(res, res2)) -> res
+
+names(res) <- c("RLQ-09", "RLQ-02")
+
+boxplot(res, main="MAE", col="blue")
+
+```
+```{r RSQ}
+
+library(vioplot)
+
+options(scipen=999)
+
+res<-t(tabla_final_09[2,3:ncol(tabla_final_09)])
+res2<-t(tabla_final_02[2,3:ncol(tabla_final_02)])
+names(res)<-c("RLQ-09")
+names(res)<-c("RLQ-02")
+
+as.data.frame(cbind(res, res2)) -> res
+
+names(res) <- c("RLQ-09", "RLQ-02")
+
+boxplot(res, main="RSQ", col="blue")
+
+```
+```{r RMS2}
+
+library(vioplot)
+
+options(scipen=999)
+
+res<-t(tabla_final_09[1,3:ncol(tabla_final_09)])
+res2<-t(tabla_final_02[1,3:ncol(tabla_final_02)])
+names(res)<-c("RLQ-09")
+names(res)<-c("RLQ-02")
+
+as.data.frame(cbind(res, res2)) -> res
+
+names(res) <- c("RLQ-09", "RLQ-02")
+
+boxplot(res, main="RMSE", col="blue")
+
+```
+```{r bias}
+
+library(vioplot)
+
+options(scipen=999)
+
+res<-t(tabla_final_09[4,3:ncol(tabla_final_09)])
+res2<-t(tabla_final_02[4,3:ncol(tabla_final_02)])
+names(res)<-c("RLQ-09")
+names(res)<-c("RLQ-02")
+
+as.data.frame(cbind(res, res2)) -> res
+
+names(res) <- c("RLQ-09", "RLQ-02")
+
+boxplot(res, main="BIAS", col="blue")
+
+```
+```{r GINI}
+
+library(vioplot)
+
+options(scipen=999)
+
+res<-t(tabla_final_09[5,3:ncol(tabla_final_09)])
+res2<-t(tabla_final_02[5,3:ncol(tabla_final_02)])
+names(res)<-c("RLQ-09")
+names(res)<-c("RLQ-02")
+
+as.data.frame(cbind(res, res2)) -> res
+
+names(res) <- c("RLQ-09", "RLQ-02")
+
+boxplot(res, main="GINI", col="blue")
+
+```
+
+
 

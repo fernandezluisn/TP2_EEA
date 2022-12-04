@@ -2,7 +2,9 @@
 title: "Regresión Lasso"
 author: "Luis Nahuel Fernández y Andrés sandoval"
 date: '2022-11-26'
-output: html_document
+output: 
+  rmdformats::robobook:
+      code_folding: hide
 ---
 
 El objetivo de este experimento es implementar un algoritmo de regresión Lasso
@@ -22,7 +24,7 @@ en el problema de optimización
 
 $$ \min_{\beta} \|y - X\beta \|^2_2 $$
 
-En lasso se agrega una restricción del tipo paramétrica sobre la magnitud de los coeficientes $\|\beta\|^2_1 \leq \lambda $. Este parámetro es llamado parámetro de penalización. 
+En Lasso se agrega una restricción del tipo paramétrica sobre la magnitud de los coeficientes $\|\beta \|^2_1 \leq \lambda$. Este parámetro es llamado parámetro de penalización. 
 
 Una formulación análoga (equivalente matemáticamente) consiste en introducir la restricción dentro de la función objetivo, resultado la función objetivo del problema de Lasso en 
 
@@ -30,22 +32,24 @@ $$ \min_{\beta} \|y - X\beta \|^2_2 + \lambda \|\beta\|^2_1 $$
 
 Notar que para $\lambda$ hay una función objetivo diferente, es decir, Lasso es un problema que depende de $\lambda$, cada elección de $\lambda$ produce un resultado diferente. Notar que introducir el término $\lambda \|\beta\|^2_1$ hace que la magnitud de $\beta$ no explote, pues es un término positivo en la función objetivo a minimizar.
 
-¿Por que consideramos la norma 1?  # TODO: COMPLETAR ESTO
 
 
-
-## Aplicación a nuestro dataset
-
-
-
-```{r setup, include=TRUE}
-knitr::opts_chunk$set(echo = TRUE)
+```{r setup, include=FALSE}
 remove(list=ls())
 gc()
 library(here)
 library(dplyr)
 library(tidyverse)
 library(tidymodels)
+library(vctrs)
+library(quantreg)
+library(dplyr)
+library(vioplot)
+library("reldist")
+library(glmnet)
+
+library(vioplot)
+
 
 setwd(here())
 source("funciones\\funciones.r")
@@ -62,43 +66,56 @@ head(usu_individual_T421)
 ```
 
 
-```{r setup, include=TRUE}
-knitr::opts_chunk$set(echo = TRUE)
 
-for (n in 1:2) {
-  asalNulos<-ponerNulos(usu_individual_T421)
-  sum(is.na(asalNulos$P21_i))
-  baseTrain<-asalNulos %>% filter(!is.na(P21_i))
-  
-  
-  baseActual2<- baseTrain[,c("P21_i","INF", "CH06","CH04","rol", "rama.eph", "NIVEL_ED", "car2", "AGLOMERADO")]
-  
-  # X matriz de features
-  X <- data.matrix(baseActual2[, c("INF", "CH06","CH04","rol", "rama.eph", "NIVEL_ED", "car2", "AGLOMERADO")])
-  # Y logaritmo del ingreso
-  Y <- baseActual2$P21_i
-  
-  m1 <- glmnet(X, Y, family="gaussian",
-                intercept = F, alpha=1) 
-  
-  baseTest<-asalNulos %>% filter(is.na(P21_i))
-  
-  baseTest <- data.matrix(baseTest[, c("INF", "CH06","CH04","rol", "rama.eph", "NIVEL_ED", "car2", "AGLOMERADO")])
+## Aplicación a nuestro dataset
 
-  predict(m1,newx = baseTest)->baseTest$P21_final
 
-}
 
+Mantuvimos la misma lógica que todos los experimentos, probamos 100 ejecuciones de los algoritmos de Lasso y Ridge obteniendo los siguientes resultados
+
+
+
+```{r}
+
+tabla_final_lasso<-read.csv("metricas/lasso.csv")
+tabla_final_ridge<-read.csv("metricas/ridge.csv")
 
 ```
 
 
 
-```{r setup, include=TRUE}
-knitr::opts_chunk$set(echo = TRUE)
+```{r mae}
 
-head(baseTest)
+options(scipen=999)
 
+res<-t(tabla_final_lasso[3,3:ncol(tabla_final_lasso)])
+res2<-t(tabla_final_ridge[3,3:ncol(tabla_final_ridge)])
+names(res)<-c("Lasso")
+names(res)<-c("Ridge")
+
+as.data.frame(cbind(res, res2)) -> res
+
+names(res) <- c("Lasso", "Ridge")
+
+boxplot(res, main="MAE", col="blue")
+
+```
+```{r RSQ}
+
+library(vioplot)
+
+options(scipen=999)
+
+res<-t(tabla_final_lasso[2,3:ncol(tabla_final_lasso)])
+res2<-t(tabla_final_ridge[2,3:ncol(tabla_final_ridge)])
+names(res)<-c("Lasso")
+names(res)<-c("Ridge")
+
+as.data.frame(cbind(res, res2)) -> res
+
+names(res) <- c("Lasso", "Ridge")
+
+boxplot(res, main="RSQ", col="blue")
 
 ```
 
@@ -109,43 +126,93 @@ head(baseTest)
 
 
 
+```{r RAAASQ}
+
+library(vioplot)
+
+options(scipen=999)
+
+res<-t(tabla_final_lasso[1,3:ncol(tabla_final_lasso)])
+res2<-t(tabla_final_ridge[1,3:ncol(tabla_final_ridge)])
+names(res)<-c("Lasso")
+names(res)<-c("Ridge")
+
+as.data.frame(cbind(res, res2)) -> res
+
+names(res) <- c("Lasso", "Ridge")
+
+boxplot(res, main="RSME", col="blue")
+
+```
+
+
+```{r RSQA}
+
+res<-t(tabla_final_lasso[4,3:ncol(tabla_final_lasso)])
+res2<-t(tabla_final_ridge[4,3:ncol(tabla_final_ridge)])
+names(res)<-c("Lasso")
+names(res)<-c("Ridge")
+
+as.data.frame(cbind(res, res2)) -> res
+
+names(res) <- c("Lasso", "Ridge")
+
+boxplot(res, main="BIAS", col="blue")
+
+```
+
+
+
+
+```{r RSAAQ}
+
+res<-t(tabla_final_lasso[5,3:ncol(tabla_final_lasso)])
+res2<-t(tabla_final_ridge[5,3:ncol(tabla_final_ridge)])
+names(res)<-c("Lasso")
+names(res)<-c("Ridge")
+
+as.data.frame(cbind(res, res2)) -> res
+
+names(res) <- c("Lasso", "Ridge")
+
+boxplot(res, main="GINI", col="blue")
+
+```
+
+
+
+
+## Elección de Lambda
 
 
 
 
 
-
-
-
-
-
-
-```{r setup, include=TRUE}
-knitr::opts_chunk$set(echo = TRUE)
-
-#install.packages("glmnet")
-library(glmnet)
+```{r}
 
 #——————————————–
 # Model
 #——————————————–
-lambda = 0.2
+lambda <- 0.1
 
 #______________
 # X e Y
 #______________
 
-cols <- c("INF", "CH06","CH03", "CH15","CH08","PP07H","PP3E_TOT","PP04C", "PP07E","PP03D", "CH11", "CH16", "CH09" , "CH04", 
-          "rol", "rama.eph", "car2", "AGLOMERADO", 
+cols <- c("INF", "CH06","CH03", "CH15","CH08","PP07H","PP3E_TOT","PP04C", "PP07E","PP03D", "CH11", "CH16" ,"CH09", "CH04", 
+          "rol", "rama.eph", "car2","car1", "AGLOMERADO", "REGION",
           "INTENSI", "NIVEL_ED")
 
-X <- data.matrix(usu_individual_T421[, c("INF", "CH06", "CH04", "rol", "rama.eph", "car2", "AGLOMERADO", "INTENSI")])
+cols2 <- c("INF", "CH06", "CH04", "rol", "rama.eph", "car2","car1",  "AGLOMERADO", "INTENSI")
 
 usu_individual_T421 <-usu_individual_T421 %>% filter(P21>0) 
 
-usu_individual_T421$Y <- log(usu_individual_T421$P2)
+X <- data.matrix(usu_individual_T421[, cols2])
 
-Y <- usu_individual_T421$Y
+
+usu_individual_T421$Y <- usu_individual_T421$P2
+
+Y <- log(usu_individual_T421$Y)
 
 
 #--- Results-------
@@ -157,11 +224,11 @@ Y <- usu_individual_T421$Y
 # lasso
 la.eq <- glmnet(X, Y, lambda=lambda,
                 family="gaussian",
-                intercept = F, alpha=1) 
+                intercept = F, alpha=1, standardize = TRUE, standardize.response = FALSE) 
 # Ridge
 ri.eq <- glmnet(X, Y, lambda=lambda,
                 family="gaussian",
-                intercept = F, alpha=0) 
+                intercept = F, alpha=0, standardize = TRUE, standardize.response = FALSE) 
 
 df.comp <- data.frame(
     Lasso   = la.eq$beta[,1],
@@ -173,22 +240,53 @@ df.comp
 
 ```
 
-```{r setup, include=TRUE}
-knitr::opts_chunk$set(echo = TRUE)
+# Validación cruzada lambda óptimo
+
+
+
+```{r}
 
 
 # lasso
-la.eq <- glmnet(X, Y, family="gaussian", 
-                intercept = F, alpha=1) 
-# Ridge
-ri.eq <- glmnet(X, Y, family="gaussian", 
-                intercept = F, alpha=0) 
+la.eq <- cv.glmnet(X, Y, family="gaussian", 
+                intercept = F, alpha=1, main = "Lasso") 
 
-x11(); par(mfrow=c(2,1)) 
-x11(); matplot(log(la.eq$lambda), t(la.eq$beta),
-                   type="l", main="Lasso", lwd=2)
-x11(); matplot(log(ri.eq$lambda), t(ri.eq$beta),
-                   type="l", main="Ridge", lwd=2)
+plot(la.eq)
+
+#matplot(log(la.eq$lambda), t(la.eq$lambda.1se),  type="l", main="Lasso", lwd=2)
+
+
+
+```
+
+
+```{r}
+
+
+# Ridge
+ri.eq <- cv.glmnet(X, Y, family="gaussian", 
+                intercept = F, alpha=0)
+
+
+plot(ri.eq, main = "Ridge")
+
+
+#matplot(log(ri.eq$lambda), t(ri.eq$beta),  type="l", main="Lasso", lwd=2)
+
+
+```
+
+
+# Coeficientes
+
+```{r}
+
+
+# Lasoo
+la.eq <- glmnet(X, Y, family="gaussian", 
+                intercept = F, alpha=1)
+
+matplot(log(la.eq$lambda), t(la.eq$beta),  type="l", main="Lasso", lwd=2)
 
 
 ```
@@ -208,7 +306,75 @@ x11(); matplot(log(ri.eq$lambda), t(ri.eq$beta),
 
 
 
+```{r}
+
+# 
+# giniTot<-gini(usu_individual_T421$P21, usu_individual_T421$PONDIIO)
+# 
+# remove(tabla_final)
+# remove(tablaActual)
+# remove(X)
+# remove(Y)
+# gc()
+# 
+# 
+# cols <- c("INF", "CH06","CH03", "CH15","CH08","PP07H","PP04C", "PP07E","PP03D", "CH11", "CH16" ,"CH09", "CH04", 
+#           "rol", "rama.eph", "car2","car1", "AGLOMERADO", "REGION",
+#           "INTENSI", "NIVEL_ED")
+# 
+# 
+# 
+# giniTot<-gini(usu_individual_T421$P21, usu_individual_T421$PONDIIO)
+# 
+# lambda <- 0.2
+# 
+# for (n in 1:100) {
+# 
+#   asalNulos<-ponerNulos(usu_individual_T421)
+#   sum(is.na(asalNulos$P21_i))
+#   asalNulos$Y <- asalNulos$P21_i
+#   baseTrain<-asalNulos %>% filter(!is.na(Y))
+#   
+#   X <- data.matrix(baseTrain[, cols])
+#   
+#   Y <- baseTrain$Y
+#   
+#   la.eq <- glmnet(X, Y, lambda=lambda,
+#                 family="gaussian",
+#                 intercept = F, alpha=0) 
+#   
+# 
+#   baseTest<-asalNulos %>% filter(is.na(Y))
+# 
+#   baseTest$fitted_exp<-predict(la.eq, data.matrix(baseTest)[, cols])
+#   
+#   baseTest$fitted_exp <- c(t(baseTest$fitted_exp))
+# 
+#   c(baseTrain$P21, baseTest$fitted_exp)->salarios
+#   c(baseTrain$PONDIIO, baseTest$PONDIIO)->ponderadores
+# 
+#   gini(salarios,ponderadores)->gini2
+# 
+#   if(n==1){
+#     sesgo<-c("Bias", "Standard",Metrics::bias(baseTest$P21, baseTest$fitted_exp))
+#     GF<-c("Gini", "Standard",gini2-giniTot)
+# 
+#     tabla_final<- rbind(metrics(baseTest,truth=P21, estimate=fitted_exp),sesgo,GF)
+# 
+#   }else{
+#     sesgo<-c("Bias", "Standard",Metrics::bias(baseTest$P21, baseTest$fitted_exp))
+#     GF<-c("Gini", "Standard",gini2-giniTot)
+# 
+#     tablaActual<-  rbind(metrics(baseTest,truth=P21, estimate=fitted_exp),sesgo,GF)
+#     tablaActual[, paste0("prueba_",n)]<-tablaActual[,".estimate"]
+#     tablaActual[,".estimate"]<-NULL
+#     tabla_final<- left_join(tabla_final,tablaActual, by=c(".metric",".estimator"))
+# 
+#   }
+# }
 
 
+
+```
 
 
